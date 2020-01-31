@@ -7,11 +7,12 @@
 #
 # Description:  This script handles in-place upgrades or clean installs of macOS.
 #
-# Forked by Greg Knackstedt / gmknacks(AT)gmail.com / 1.30.2020
-# Version 2.2
+# Forked by Greg Knackstedt / gmknacks(AT)gmail.com / 1.31.2020
+# Version 2.2.1
 # Added support for macOS Catalina 10.15
 # Added param 9 to bypass DEP check/QuickAdd.pkg for environments that prefer to enroll via web/profile
 # Added param 10 for quickadd.pkg path
+# Added param 11 for directory Install macOS XXXX.app is located
 ###################################################################################################
 
 echo "*****  install_macOS process:  START  *****"
@@ -57,6 +58,7 @@ echo "*****  install_macOS process:  START  *****"
 	preserveAPFS="${8}"
 	enableQuickAdd="${9}"
 	quickAddPath="${10}"
+	macOSinstallerDir="${11}"
 
 ##################################################
 # Setup Functions
@@ -177,7 +179,7 @@ inform() {
 					## Setup jamfHelper window for Installing message
 					windowType="hud"
 					Heading="Initializing macOS..."
-					Description="Your machine has been scheduled to for a macOS upgrade, please save all open work and close all applications.  This process may take some time depending on the configuration of your machine.
+					Description="Your machine has been scheduled to for a macOS upgrade, please save all open work and close all Applications.  This process may take some time depending on the configuration of your machine.
 Your computer will reboot and begin the upgrade process shortly."
 					Icon="${upgradeOS}/Contents/Resources/ProductPageIcon.icns"
 					extras=""
@@ -234,7 +236,7 @@ Once downloaded, you will be prompted to continue."
 					windowType="hud"
 					Heading="Download Complete!                                         "
 					Description="Before continuing, please complete the following actions:
-	- Save all open work and close all applications.
+	- Save all open work and close all Applications.
 	- A power adapter is required to continue, connect it now if you are running on battery.
 
 Click OK when you are ready to continue; once you do so, the install process will begin."
@@ -571,9 +573,9 @@ shopt -u nocasematch
 /usr/bin/curl --silent $jamfPS/icon?id=$downloadIcon > /private/tmp/downloadIcon.png
 
 # Check if the install .app is already present on the machine (no need to redownload the package).
-if [[ -d "/Applications/${appName}" ]]; then
-	echo "Using installation files found in /Applications"
-	upgradeOS="/Applications/${appName}"
+if [[ -d "/${macOSinstallerDir}/${appName}" ]]; then
+	echo "Using installation files found in /${macOSinstallerDir}"
+	upgradeOS="/${macOSinstallerDir}/${appName}"
 # elif [[ -d "/tmp/${appName}" ]]; then
 #	echo "Using installation files found in /tmp"
 #	upgradeOS="/tmp/${appName}"
@@ -581,7 +583,7 @@ else
 	# Function downloadInstaller
 		downloadInstaller
 	# Set the package name.
-		upgradeOS="/Applications/${appName}"
+		upgradeOS="/${macOSinstallerDir}/${appName}"
 fi
 
 # This section handles if we want to create a USB.
