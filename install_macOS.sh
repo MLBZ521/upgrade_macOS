@@ -8,9 +8,10 @@
 # Description:  This script handles in-place upgrades or clean installs of macOS.
 #
 # Forked by Greg Knackstedt / gmknacks(AT)gmail.com / 1.30.2020
-# Version 2.1.3b
+# Version 2.2
 # Added support for macOS Catalina 10.15
 # Added param 9 to bypass DEP check/QuickAdd.pkg for environments that prefer to enroll via web/profile
+# Added param 10 for quickadd.pkg path
 ###################################################################################################
 
 echo "*****  install_macOS process:  START  *****"
@@ -48,8 +49,6 @@ echo "*****  install_macOS process:  START  *****"
 	installSwitch=()
 # Define the value for the --newvolumename Switch
 	volumeName="Macintosh HD"
-# Define the value for the --installpackage Switch
-	packageName="/Libray/Application Support/JAMF/FakeDEP/QuickAdd_FakeDEP_1.29.20.pkg"
 # Reassign passed parameters
 	macOSVersion="${4}"
 	methodType="${5}"
