@@ -7,8 +7,8 @@
 #
 # Description:  This script handles in-place upgrades or clean installs of macOS.
 #
-# Forked by Greg Knackstedt / gmknacks(AT)gmail.com / 1.28.2020
-# Version 2.1.3a
+# Forked by Greg Knackstedt / gmknacks(AT)gmail.com / 1.30.2020
+# Version 2.1.3b
 # Added support for macOS Catalina 10.15
 # Added param 9 to bypass DEP check/QuickAdd.pkg for environments that prefer to enroll via web/profile
 ###################################################################################################
@@ -23,9 +23,9 @@ echo "*****  install_macOS process:  START  *****"
 # Download Icon IDs
 	elCapitanIconID="182"
 	sierraIconID="181"
-	highSierraIconID="180"
-	mojaveIconID="183"
-	catalinaIconID="000"
+	highSierraIconID="75"
+	mojaveIconID="126"
+	catalinaIconID="125"
 # Custom Trigger used for FileVault Authenticated Reboot
 	authRestartFVTrigger="AuthenticatedRestart"
 # Custom Trigger used for Downloading Installation Media
@@ -49,7 +49,7 @@ echo "*****  install_macOS process:  START  *****"
 # Define the value for the --newvolumename Switch
 	volumeName="Macintosh HD"
 # Define the value for the --installpackage Switch
-	packageName="/tmp/Jamf_QuickAdd.pkg"
+	packageName="/Libray/Application Support/JAMF/FakeDEP/QuickAdd_FakeDEP_1.29.20.pkg"
 # Reassign passed parameters
 	macOSVersion="${4}"
 	methodType="${5}"
@@ -57,6 +57,7 @@ echo "*****  install_macOS process:  START  *****"
 	eraseinstall="${7}"
 	preserveAPFS="${8}"
 	enableQuickAdd="${9}"
+	quickAddPath="${10}"
 
 ##################################################
 # Setup Functions
@@ -99,9 +100,9 @@ modernFeatures() {
 
 				# macOS High Sierra 10.13+ option
 				# Check if device is DEP Enrolled, if it is not, stage a QuickAdd package to enroll after wiping drive and installing the new OS.
-			if [[ "${9}" == "Yes" ]]; then
+			if [[ "$enableQuickAdd" == "Yes" ]]; then
 				if [[ $(/usr/bin/profiles status -type enrollment | /usr/bin/awk -F "Enrolled via DEP: " '{print $2}' | /usr/bin/xargs) == "No" ]]; then
-					installSwitch+=("--installpackage ${packageName}")
+					installSwitch+=("--installpackage ${quickAddPath}")
 				fi
 			fi
 		else
@@ -420,6 +421,7 @@ Please do not remove the USB drive."
 			/usr/bin/defaults write -globalDomain IAQuitInsteadOfReboot -bool YES
 
 			echo "Calling the startosinstall binary..."
+			echo "${installSwitch[@]} 2>&1"
 			exitOutput=$(eval '"${upgradeOS}"'/Contents/Resources/startosinstall --nointeraction ${installSwitch[@]} 2>&1)
 
 			# Grab the exit value.
@@ -526,13 +528,13 @@ shopt -s nocasematch
 # Set the variables based on the version that is being provided.
 case "${macOSVersion}" in
 	"Catalina" | "10.15" )
-		downloadIcon=${mojaveIconID}
+		downloadIcon=${catalinaIconID}
 		appName="Install macOS Catalina.app"
 		downloadTrigger="${catalinaDownloadTrigger}"
 
 		# Function modernFeatures
 			modernFeatures "${convertAPFS}" "${eraseinstall}" "${preserveAPFS}"
-
+	;;
 	"Mojave" | "10.14" )
 		downloadIcon=${mojaveIconID}
 		appName="Install macOS Mojave.app"
@@ -573,14 +575,14 @@ shopt -u nocasematch
 if [[ -d "/Applications/${appName}" ]]; then
 	echo "Using installation files found in /Applications"
 	upgradeOS="/Applications/${appName}"
-elif [[ -d "/tmp/${appName}" ]]; then
-	echo "Using installation files found in /tmp"
-	upgradeOS="/tmp/${appName}"
+# elif [[ -d "/tmp/${appName}" ]]; then
+#	echo "Using installation files found in /tmp"
+#	upgradeOS="/tmp/${appName}"
 else
 	# Function downloadInstaller
 		downloadInstaller
 	# Set the package name.
-		upgradeOS="/tmp/${appName}"
+		upgradeOS="/Applications/${appName}"
 fi
 
 # This section handles if we want to create a USB.
