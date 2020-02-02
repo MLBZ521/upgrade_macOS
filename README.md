@@ -1,5 +1,8 @@
 # install_macOS
 
+- Supports macOS Catalina
+- Greg Knackstedt 2.2.2020
+
 I have renamed this project as the overall scope and functionality has changed.
 
 I have added several new pieces of functionality which I have documented below.
