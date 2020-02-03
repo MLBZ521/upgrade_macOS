@@ -7,6 +7,12 @@
 #
 # Description:  This script handles in-place upgrades or clean installs of macOS.
 #
+# Forked by Greg Knackstedt / gmknacks(AT)gmail.com / 1.31.2020
+# Version 2.2.1
+# Added support for macOS Catalina 10.15
+# Added param 9 to bypass DEP check/QuickAdd.pkg for environments that prefer to enroll via web/profile
+# Added param 10 for quickadd.pkg path
+# Added param 11 for directory Install macOS XXXX.app is located
 ###################################################################################################
 
 echo "*****  install_macOS process:  START  *****"
@@ -19,8 +25,9 @@ echo "*****  install_macOS process:  START  *****"
 # Download Icon IDs
 	elCapitanIconID="182"
 	sierraIconID="181"
-	highSierraIconID="180"
-	mojaveIconID="183"
+	highSierraIconID="75"
+	mojaveIconID="126"
+	catalinaIconID="125"
 # Custom Trigger used for FileVault Authenticated Reboot
 	authRestartFVTrigger="AuthenticatedRestart"
 # Custom Trigger used for Downloading Installation Media
@@ -28,6 +35,7 @@ echo "*****  install_macOS process:  START  *****"
 	sierraDownloadTrigger="macOSUpgrade_Sierra"
 	highSierraDownloadTrigger="macOSUpgrade_HighSierra"
 	mojaveDownloadTrigger="macOSUpgrade_Mojave"
+	catalinaDownloadTrigger="macOSUpgrade_Catalina"
 
 ##################################################
 # Define Variables
@@ -42,14 +50,15 @@ echo "*****  install_macOS process:  START  *****"
 	installSwitch=()
 # Define the value for the --newvolumename Switch
 	volumeName="Macintosh HD"
-# Define the value for the --installpackage Switch
-	packageName="/tmp/Jamf_QuickAdd.pkg"
 # Reassign passed parameters
 	macOSVersion="${4}"
 	methodType="${5}"
 	convertAPFS="${6}"
 	eraseinstall="${7}"
 	preserveAPFS="${8}"
+	enableQuickAdd="${9}"
+	quickAddPath="${10}"
+	macOSinstallerDir="${11}"
 
 ##################################################
 # Setup Functions
@@ -80,6 +89,9 @@ modernFeatures() {
 				if [[ "${macOSVersion}" == "Mojave" || "${macOSVersion}" == "10.14" ]]; then
 					echo "Preserve Volumes in APFS Container:  ${3}"
 					installSwitch+=("--preservecontainer")
+				elif [[ "${macOSVersion}" == "Catalina" || "${macOSVersion}" == "10.15" ]]; then
+					echo "Preserve Volumes in APFS Container:  ${3}"
+					installSwitch+=("--preservecontainer")
 				else
 					echo "ERROR:  --preservecontainer is only supported on macOS 10.14 Mojave and newer!"
 					echo "*****  install_macOS process:  FAILED  *****"
@@ -87,10 +99,12 @@ modernFeatures() {
 				fi
 			fi
 
-			# macOS High Sierra 10.13+ option
-			# Check if device is DEP Enrolled, if it is not, stage a QuickAdd package to enroll after wiping drive and installing the new OS.
-			if [[ $(/usr/bin/profiles status -type enrollment | /usr/bin/awk -F "Enrolled via DEP: " '{print $2}' | /usr/bin/xargs) == "No" ]]; then
-				installSwitch+=("--installpackage ${packageName}")
+				# macOS High Sierra 10.13+ option
+				# Check if device is DEP Enrolled, if it is not, stage a QuickAdd package to enroll after wiping drive and installing the new OS.
+			if [[ "$enableQuickAdd" == "Yes" ]]; then
+				if [[ $(/usr/bin/profiles status -type enrollment | /usr/bin/awk -F "Enrolled via DEP: " '{print $2}' | /usr/bin/xargs) == "No" ]]; then
+					installSwitch+=("--installpackage ${quickAddPath}")
+				fi
 			fi
 		else
 			# jamfHelper Install Failed
@@ -165,7 +179,7 @@ inform() {
 					## Setup jamfHelper window for Installing message
 					windowType="hud"
 					Heading="Initializing macOS..."
-					Description="Your machine has been scheduled to for a macOS upgrade, please save all open work and close all applications.  This process may take some time depending on the configuration of your machine.
+					Description="Your machine has been scheduled to for a macOS upgrade, please save all open work and close all Applications.  This process may take some time depending on the configuration of your machine.
 Your computer will reboot and begin the upgrade process shortly."
 					Icon="${upgradeOS}/Contents/Resources/ProductPageIcon.icns"
 					extras=""
@@ -222,7 +236,7 @@ Once downloaded, you will be prompted to continue."
 					windowType="hud"
 					Heading="Download Complete!                                         "
 					Description="Before continuing, please complete the following actions:
-	- Save all open work and close all applications.
+	- Save all open work and close all Applications.
 	- A power adapter is required to continue, connect it now if you are running on battery.
 
 Click OK when you are ready to continue; once you do so, the install process will begin."
@@ -408,6 +422,7 @@ Please do not remove the USB drive."
 			/usr/bin/defaults write -globalDomain IAQuitInsteadOfReboot -bool YES
 
 			echo "Calling the startosinstall binary..."
+			echo "${installSwitch[@]} 2>&1"
 			exitOutput=$(eval '"${upgradeOS}"'/Contents/Resources/startosinstall --nointeraction ${installSwitch[@]} 2>&1)
 
 			# Grab the exit value.
@@ -513,6 +528,14 @@ shopt -s nocasematch
 
 # Set the variables based on the version that is being provided.
 case "${macOSVersion}" in
+	"Catalina" | "10.15" )
+		downloadIcon=${catalinaIconID}
+		appName="Install macOS Catalina.app"
+		downloadTrigger="${catalinaDownloadTrigger}"
+
+		# Function modernFeatures
+			modernFeatures "${convertAPFS}" "${eraseinstall}" "${preserveAPFS}"
+	;;
 	"Mojave" | "10.14" )
 		downloadIcon=${mojaveIconID}
 		appName="Install macOS Mojave.app"
@@ -550,17 +573,17 @@ shopt -u nocasematch
 /usr/bin/curl --silent $jamfPS/icon?id=$downloadIcon > /private/tmp/downloadIcon.png
 
 # Check if the install .app is already present on the machine (no need to redownload the package).
-if [[ -d "/Applications/${appName}" ]]; then
-	echo "Using installation files found in /Applications"
-	upgradeOS="/Applications/${appName}"
-elif [[ -d "/tmp/${appName}" ]]; then
-	echo "Using installation files found in /tmp"
-	upgradeOS="/tmp/${appName}"
+if [[ -d "/${macOSinstallerDir}/${appName}" ]]; then
+	echo "Using installation files found in /${macOSinstallerDir}"
+	upgradeOS="/${macOSinstallerDir}/${appName}"
+# elif [[ -d "/tmp/${appName}" ]]; then
+#	echo "Using installation files found in /tmp"
+#	upgradeOS="/tmp/${appName}"
 else
 	# Function downloadInstaller
 		downloadInstaller
 	# Set the package name.
-		upgradeOS="/tmp/${appName}"
+		upgradeOS="/${macOSinstallerDir}/${appName}"
 fi
 
 # This section handles if we want to create a USB.
